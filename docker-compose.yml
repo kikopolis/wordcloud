@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+
+    db:
+        container_name: db
+        build: ./wordcloud-db
+        environment:
+            MARIADB_ROOT_PASSWORD: mariadb
+            # TODO: remove after development
+        ports:
+            - "3306:3306"
+        volumes:
+            - mariadb:/var/lib/mysql
+        healthcheck:
+            test: mysqladmin ping -h localhost -uroot -pmariadb
+            interval: 1s
+            timeout: 3s
+            retries: 30
+            start_period: 10s
+        restart: always
+        networks:
+            - wordcloud
+
+    core:
+        container_name: wordcloud-core
+        build: ./wordcloud-core
+        depends_on:
+            db:
+                condition: service_healthy
+        ports:
+            - "8081:8080"
+        healthcheck:
+            test: curl -f http://localhost:8080/rest/health || exit 1
+            interval: 1s
+            timeout: 3s
+            retries: 30
+            start_period: 60s
+        networks:
+            - wordcloud
+
+    worker:
+        container_name: wordcloud-worker
+        build: ./wordcloud-worker
+        depends_on:
+            db:
+                condition: service_healthy
+            core:
+                condition: service_healthy
+            mq:
+                condition: service_started
+        ports:
+            - "8082:8080"
+        healthcheck:
+            test: curl -f http://localhost:8080/rest/health || exit 1
+            interval: 1s
+            timeout: 3s
+            retries: 30
+            start_period: 10s
+        networks:
+            - wordcloud
+
+    mq:
+        container_name: mq
+        image: rabbitmq:3-management
+        ports:
+            - "15672:15672"
+            - "5672:5672"
+        volumes:
+            - rabbitmq:/var/lib/rabbitmq
+        environment:
+            - RABBITMQ_DEFAULT_USER=compose-mq
+            - RABBITMQ_DEFAULT_PASS=compose-mq
+        restart: always
+        networks:
+            - wordcloud
+
+    frontend:
+        container_name: wordcloud-front-end
+        build: ./wordcloud-front-end
+        ports:
+            - "4200:80"
+        depends_on:
+            - core
+            - worker
+        environment:
+            - BACKEND_URL=http://core:8080
+        networks:
+            - wordcloud
+
+volumes:
+    mariadb:
+    rabbitmq:
+
+networks:
+    wordcloud:
+        driver: bridge
