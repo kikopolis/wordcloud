@@ -6,8 +6,9 @@ services:
         container_name: db
         build: ./wordcloud-db
         environment:
+            MYSQL_DATABASE: wordcloud
             MARIADB_ROOT_PASSWORD: mariadb
-            # TODO: remove after development
+        # TODO: remove after development
         ports:
             - "3306:3306"
         volumes:
@@ -28,6 +29,10 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+        environment:
+            SPRING_DATASOURCE_URL: jdbc:mariadb://db:3306/wordcloud?createDatabaseIfNotExist=true
+            SERVER_PORT: 8080
+            MQ_HOST: mq
         ports:
             - "8081:8080"
         healthcheck:
@@ -36,6 +41,7 @@ services:
             timeout: 3s
             retries: 30
             start_period: 60s
+        restart: on-failure
         networks:
             - wordcloud
 
@@ -49,6 +55,10 @@ services:
                 condition: service_healthy
             mq:
                 condition: service_started
+        environment:
+            SPRING_DATASOURCE_URL: jdbc:mariadb://db:3306/wordcloud?createDatabaseIfNotExist=true
+            SERVER_PORT: 8080
+            MQ_HOST: mq
         ports:
             - "8082:8080"
         healthcheck:
@@ -57,6 +67,7 @@ services:
             timeout: 3s
             retries: 30
             start_period: 10s
+        restart: on-failure
         networks:
             - wordcloud
 
@@ -69,8 +80,9 @@ services:
         volumes:
             - rabbitmq:/var/lib/rabbitmq
         environment:
-            - RABBITMQ_DEFAULT_USER=compose-mq
-            - RABBITMQ_DEFAULT_PASS=compose-mq
+            - RABBITMQ_DEFAULT_USER=composemq
+            - RABBITMQ_DEFAULT_PASS=composemq
+            - MAX_MESSAGE_SIZE=134217728
         restart: always
         networks:
             - wordcloud
